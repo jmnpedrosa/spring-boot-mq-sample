@@ -23,3 +23,6 @@ jms:
         channel: CHANNELNAME
     queue: QUEUENAME
     encoding: 284
+
+# listening interval between messages
+message.interval.secs: 5

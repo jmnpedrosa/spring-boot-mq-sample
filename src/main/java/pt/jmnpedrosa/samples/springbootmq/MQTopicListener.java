@@ -1,62 +1,55 @@
 package pt.jmnpedrosa.samples.springbootmq;
 
-import java.io.StringReader;
-import java.io.StringWriter;
-import java.io.Writer;
+import java.util.concurrent.CompletableFuture;
 
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageListener;
 import javax.jms.TextMessage;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.Document;
-import org.xml.sax.InputSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 
 public class MQTopicListener implements MessageListener {
 
   private static final Logger LOG = LoggerFactory.getLogger(MQTopicListener.class);
+  
+  @Value("${message.interval.secs}")
+  private int messageInterval;
+  
+  @Autowired
+  private MQTopicProcessor topicProcessor;
 
   @Override  
   public void onMessage(Message message) {
     
-    String msgText = null;
-    
-    try {
-        msgText = ((TextMessage) message).getText();
-        
-        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-        dbf.setValidating(false);
-        DocumentBuilder db = dbf.newDocumentBuilder();
-        
-        Document doc = db.parse(new InputSource(new StringReader(msgText)));
-        Transformer tf = TransformerFactory.newInstance().newTransformer();
-        tf.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
-        tf.setOutputProperty(OutputKeys.INDENT, "yes");
-        Writer out = new StringWriter();
-        tf.transform(new DOMSource(doc), new StreamResult(out));
+	  //Process received message in new thread.
+	  if (message instanceof TextMessage) {
+		  try {
+			  final String msgText = ((TextMessage) message).getText();
+			  CompletableFuture.runAsync(() -> { topicProcessor.processMessage(msgText); });
+		  } catch (Exception e) {
+			  LOG.error("Error processing received message!", e);
+		  }
+	  }
 
-        LOG.info("Received new message: " + out.toString());
-        
-    } catch (Exception e) {
-      LOG.error("Error processing received message!", e);
-    }
-    
-    try {
-      LOG.info("Sending acknowledge to JMS Queue.");
-      message.acknowledge();
-    } catch (JMSException e) {
-      LOG.error("Error acknowledging message.\n", e);
-    }
-    
-  }  
+	  try {
+		  LOG.info("Sending acknowledge to JMS Queue.");
+		  message.acknowledge();
+	  } catch (JMSException e) {
+		  LOG.error("Error acknowledging message.\n", e);
+	  }
+
+	  // Parametrized wait interval for message listening.
+	  if (messageInterval > 0) {
+		  try {
+			  Thread.sleep(1000 * messageInterval);
+		  } catch (InterruptedException e) {
+			  LOG.error("Error sleeping PricesListener!", e);
+		  }
+	  }
+  }
   
 }
