@@ -47,7 +47,7 @@ public class MQTopicListener implements MessageListener {
 		  try {
 			  Thread.sleep(1000 * messageInterval);
 		  } catch (InterruptedException e) {
-			  LOG.error("Error sleeping PricesListener!", e);
+			  LOG.error("Error sleeping MQTopicListener!", e);
 		  }
 	  }
   }
